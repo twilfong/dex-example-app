@@ -1,3 +1,5 @@
+// Example-app from Dex with minor modifications to allow bypass first screen
+
 package main
 
 import (
@@ -23,7 +25,13 @@ import (
 	"golang.org/x/oauth2"
 )
 
-const exampleAppState = "I wish to wash my irish wristwatch"
+const exampleAppState = "SuperCoolAppState"
+
+// Making these global for now because I don't grok Cobra flags yet
+var (
+	addScopes string
+	refresh   bool
+)
 
 type app struct {
 	clientID     string
@@ -200,6 +208,8 @@ func cmd() *cobra.Command {
 	c.Flags().StringVar(&tlsCert, "tls-cert", "", "X509 cert file to present when serving HTTPS.")
 	c.Flags().StringVar(&tlsKey, "tls-key", "", "Private key for the HTTPS cert.")
 	c.Flags().StringVar(&rootCAs, "issuer-root-ca", "", "Root certificate authorities for the issuer. Defaults to host certs.")
+  c.PersistentFlags().StringVar(&addScopes, "add-scopes", "", "Space-seperated list of scopes to add. (e.g. 'groups email')")
+	c.PersistentFlags().BoolVar(&refresh, "refresh-token", false, "Include refresh token in response.")
 	c.Flags().BoolVar(&debug, "debug", false, "Print all request and responses from the OpenID Connect issuer.")
 	return &c
 }
@@ -212,7 +222,13 @@ func main() {
 }
 
 func (a *app) handleIndex(w http.ResponseWriter, r *http.Request) {
-	renderIndex(w)
+	if (addScopes != "") || refresh {
+		loginURL := fmt.Sprintf("/login?extra_scopes=%s", url.QueryEscape(addScopes))
+    if refresh { loginURL += "&offline_access=yes" }
+		http.Redirect(w, r, loginURL, http.StatusSeeOther)
+	} else {
+	  renderIndex(w)
+	}
 }
 
 func (a *app) oauth2Config(scopes []string) *oauth2.Config {
